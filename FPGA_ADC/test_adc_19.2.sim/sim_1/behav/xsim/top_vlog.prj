@@ -1,0 +1,18 @@
+# compile verilog/system verilog design source files
+verilog xil_defaultlib  --include "../../../../test_adc_19.2.srcs/sources_1/ip/clk_wiz_40_96m" \
+"../../../../test_adc_19.2.srcs/sources_1/ip/adc_ram/sim/adc_ram.v" \
+"../../../../test_adc_19.2.srcs/sources_1/ip/clk_wiz_40_96m/clk_wiz_40_96m_clk_wiz.v" \
+"../../../../test_adc_19.2.srcs/sources_1/ip/clk_wiz_40_96m/clk_wiz_40_96m.v" \
+"../../../../test_adc_19.2.srcs/sources_1/new/ad9248.v" \
+"../../../../test_adc_19.2.srcs/sources_1/new/adc_ram_control.v" \
+"../../../../test_adc_19.2.srcs/sources_1/new/reg_control.v" \
+"../../../../test_adc_19.2.srcs/sources_1/new/spi_control.v" \
+"../../../../test_adc_19.2.srcs/sources_1/new/spi_reg_control.v" \
+"../../../../test_adc_19.2.srcs/sources_1/new/spi_slave.v" \
+"../../../../test_adc_19.2.srcs/sources_1/new/top.v" \
+
+# compile glbl module
+verilog xil_defaultlib "glbl.v"
+
+# Do not sort compile order
+nosort
