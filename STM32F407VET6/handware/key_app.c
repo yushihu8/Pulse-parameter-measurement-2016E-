@@ -1,6 +1,5 @@
 #include "key_app.h"
-#include "stm32f4xx.h"                  // Device header
-
+#include "headfile.h"
 uint8_t key1;
 uint8_t key1_last =1;
 uint8_t key2;
@@ -63,6 +62,8 @@ void key_proc(void)
 	if(key2 == GPIO_PIN_RESET && key2_last == GPIO_PIN_SET)
 	{
 		key_press_flag |= KEY2_PRESS_FLAG;
+		
+	
 	}
 	if(key3 == GPIO_PIN_RESET && key3_last == GPIO_PIN_SET)
 	{

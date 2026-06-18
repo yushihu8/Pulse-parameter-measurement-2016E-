@@ -190,7 +190,7 @@
             <hadIRAM2>1</hadIRAM2>
             <hadIROM2>0</hadIROM2>
             <StupSel>8</StupSel>
-            <useUlib>0</useUlib>
+            <useUlib>1</useUlib>
             <EndSel>0</EndSel>
             <uLtcg>0</uLtcg>
             <nSecure>0</nSecure>
@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;C:/Users/YuDengxiang/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/STM32F4xx_HAL_Driver/Inc;C:/Users/YuDengxiang/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;C:/Users/YuDengxiang/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/CMSIS/Device/ST/STM32F4xx/Include;C:/Users/YuDengxiang/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/CMSIS/Include;..\handware;..\lcd_handware</IncludePath>
+              <IncludePath>../Core/Inc;C:/Users/YuDengxiang/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/STM32F4xx_HAL_Driver/Inc;C:/Users/YuDengxiang/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;C:/Users/YuDengxiang/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/CMSIS/Device/ST/STM32F4xx/Include;C:/Users/YuDengxiang/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/CMSIS/Include;../handware;../lcd_handware</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -528,6 +528,16 @@
               <FileName>key_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\handware\key_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>headfile.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\handware\headfile.h</FilePath>
+            </File>
+            <File>
+              <FileName>spi_reg.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\handware\spi_reg.c</FilePath>
             </File>
           </Files>
         </Group>

@@ -9,7 +9,7 @@ Thumbs.db
 *.log
 
 # Git helpers
-*.orig
+*.orig   
 
 # STM32CubeMX / Keil MDK user files
 STM32F407VET6/MDK-ARM/*.uvoptx

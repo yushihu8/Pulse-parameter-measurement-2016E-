@@ -24,7 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "key_app.h"
+#include "headfile.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,6 +39,23 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+uint16_t adc_buff[2048];
+static void capture_and_print(uint16_t cmd)
+{
+	
+  spi_reg_write(&cmd, 0xbb01, 1);
+
+  HAL_Delay(20);
+
+  spi_reg_read(adc_buff, 0, 2*1024);
+
+  printf("CAPTURE_BEGIN,cmd=0x%04X,samples=%u\r\n", cmd, 1024);
+
+  for (uint16_t i = 0; i < 1024; i++)
+  {
+    printf("%u\r\n",adc_buff[2 * i + 1]);
+  }
+}
 
 /* USER CODE END PM */
 
@@ -92,16 +109,20 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   key_init();
+	uint16_t cmd = 1;
+	capture_and_print(cmd);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
     key_proc();
+		
   }
   /* USER CODE END 3 */
 }
