@@ -50,13 +50,18 @@ module spi_control(
   assign w_reg_data = spi_data_out;
 
    // State machine state definitions
-  localparam IDLE = 8'h00,
+   localparam IDLE = 8'h00,
              WRITE_ADDR = 8'h02,
              WRIET_REG= 8'h03,
              WRITE_REG_AADR_CHANGE = 8'h04,
-             READ_REG_EN = 8'h05,
-             READ_REG = 8'h06,
-             READ_REG_AADR_CHANGE = 8'h07;
+             READ_SINGLE_EN = 8'h05,
+             READ_SINGLE_WAIT = 8'h06,
+             READ_STREAM_FIRST_EN = 8'h07,
+             READ_STREAM_FIRST_LOAD = 8'h08,
+             READ_STREAM_NEXT_ADDR = 8'h09,
+             READ_STREAM_NEXT_EN = 8'h0a,
+             READ_STREAM_NEXT_LOAD = 8'h0b,
+             READ_STREAM_WAIT = 8'h0c;
 
   // Operation codes
   localparam HEAD_FRAME = 8'haa,              // Head frame
@@ -108,9 +113,9 @@ module spi_control(
             MODE_REG_WRITE_CURRETN:
               state_next = WRIET_REG;
             MODE_REG_READ_SINGLE:
-              state_next = READ_REG_EN;
+              state_next = READ_SINGLE_EN;
             MODE_REG_READ_CURRETN:
-              state_next = READ_REG_EN;
+              state_next = READ_STREAM_FIRST_EN;
             default:
               state_next = IDLE;
           endcase
@@ -142,32 +147,37 @@ module spi_control(
       end
       WRITE_REG_AADR_CHANGE:
         state_next = WRIET_REG;
-      READ_REG_EN:
-        state_next = READ_REG;
-      READ_REG:
+      READ_SINGLE_EN:
+        state_next = READ_SINGLE_WAIT;
+      READ_SINGLE_WAIT:
       begin
-        if(mode_reg == MODE_REG_READ_SINGLE)
+        if(spi_rec_val)
+          state_next = IDLE;
+        else
+          state_next = READ_SINGLE_WAIT;
+      end
+      READ_STREAM_FIRST_EN:
+        state_next = READ_STREAM_FIRST_LOAD;
+      READ_STREAM_FIRST_LOAD:
+        state_next = READ_STREAM_NEXT_ADDR;
+      READ_STREAM_NEXT_ADDR:
+        state_next = READ_STREAM_NEXT_EN;
+      READ_STREAM_NEXT_EN:
+        state_next = READ_STREAM_NEXT_LOAD;
+      READ_STREAM_NEXT_LOAD:
+        state_next = READ_STREAM_WAIT;
+      READ_STREAM_WAIT:
+      begin
+        if(spi_rec_val)
         begin
-          if(spi_rec_val)
+          if(spi_data_out == LAST_FRAME)
             state_next = IDLE;
           else
-            state_next = READ_REG;
+            state_next = READ_STREAM_NEXT_ADDR;
         end
         else
-        begin
-          if(spi_rec_val)
-          begin
-            if(spi_data_out == LAST_FRAME)
-              state_next = IDLE;
-            else
-              state_next = READ_REG_AADR_CHANGE;
-          end
-          else
-            state_next = READ_REG;
-        end
+          state_next = READ_STREAM_WAIT;
       end
-      READ_REG_AADR_CHANGE:
-        state_next = READ_REG_EN;
       default:
         state_next = IDLE;
     endcase
@@ -191,6 +201,11 @@ module spi_control(
     end
     else
     begin
+      spi_data_val <= r_reg_en_temp;
+      w_reg_en <= 1'd0;
+      r_reg_en <= 1'd0;
+      r_reg_en_temp <= r_reg_en;
+
       case (state)
         IDLE:
         begin
@@ -223,16 +238,26 @@ module spi_control(
           w_reg_en <= 1'd0;
           w_reg_addr <= w_reg_addr + 16'd1;
         end
-        READ_REG_EN:
+        READ_SINGLE_EN:
           r_reg_en <= 1'd1;
-        READ_REG:
+        READ_SINGLE_WAIT:
         begin
-          r_reg_en <= 1'd0;
-          r_reg_en_temp <= r_reg_en;
-          spi_data_val <= r_reg_en_temp;
         end
-        READ_REG_AADR_CHANGE:
+        READ_STREAM_FIRST_EN:
+          r_reg_en <= 1'd1;
+        READ_STREAM_FIRST_LOAD:
+        begin
+        end
+        READ_STREAM_NEXT_ADDR:
           r_reg_addr <= r_reg_addr + 16'd1;
+        READ_STREAM_NEXT_EN:
+          r_reg_en <= 1'd1;
+        READ_STREAM_NEXT_LOAD:
+        begin
+        end
+        READ_STREAM_WAIT:
+        begin
+        end
         default:
         begin
 

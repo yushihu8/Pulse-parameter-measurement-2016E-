@@ -124,6 +124,10 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     key_proc();
+		if(key_press_flag & KEY2_PRESS_FLAG)
+		{
+			capture_and_print(cmd);
+		}
 		
   }
   /* USER CODE END 3 */

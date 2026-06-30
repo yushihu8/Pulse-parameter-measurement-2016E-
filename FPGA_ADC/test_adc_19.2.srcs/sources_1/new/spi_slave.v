@@ -37,6 +37,9 @@ module spi_slave(
   reg [1:0] spi_mosi_sync;
   reg [DATA_WIDTH-1:0] rx_shift_reg;
   reg [DATA_WIDTH-1:0] tx_shift_reg;
+  reg [DATA_WIDTH-1:0] tx_next_reg;
+  reg                  tx_current_valid;
+  reg                  tx_next_valid;
 
   wire spi_cs_active;
   wire spi_cs_fall_edge;
@@ -73,6 +76,9 @@ module spi_slave(
       bit_count    <= 5'd0;
       rx_shift_reg <= {DATA_WIDTH{1'b0}};
       tx_shift_reg <= {DATA_WIDTH{1'b0}};
+      tx_next_reg  <= {DATA_WIDTH{1'b0}};
+      tx_current_valid <= 1'b0;
+      tx_next_valid    <= 1'b0;
       spi_data_out <= {DATA_WIDTH{1'b0}};
       spi_rec_val  <= 1'b0;
       spi_miso     <= 1'b0;
@@ -85,6 +91,8 @@ module spi_slave(
       begin
         bit_count <= 5'd0;
         spi_miso  <= 1'b0;
+        tx_current_valid <= 1'b0;
+        tx_next_valid    <= 1'b0;
       end
       else
       begin
@@ -92,33 +100,66 @@ module spi_slave(
         begin
           bit_count    <= 5'd0;
           rx_shift_reg <= {DATA_WIDTH{1'b0}};
-          spi_miso     <= tx_shift_reg[DATA_WIDTH-1];
+          spi_miso     <= 1'b0;
+          tx_current_valid <= 1'b0;
+          tx_next_valid    <= 1'b0;
         end
-
-        // Load the next transmit word from the register layer while CS stays active.
-        if(spi_cs_active && spi_data_val)
+        else
         begin
-          tx_shift_reg <= spi_data_in;
-          spi_miso     <= spi_data_in[DATA_WIDTH-1];
-        end
-        else if(spi_clk_neg_edge)
-        begin
-          tx_shift_reg <= {tx_shift_reg[DATA_WIDTH-2:0], 1'b0};
-          spi_miso     <= tx_shift_reg[DATA_WIDTH-2];
-        end
-
-        if(spi_clk_pos_edge)
-        begin
-          rx_shift_reg <= {rx_shift_reg[DATA_WIDTH-2:0], spi_mosi_sync[1]};
-
-          if(bit_count == DATA_WIDTH - 1)
+          // Prime the first read word directly, then keep one full word buffered ahead.
+          if(spi_data_val)
           begin
-            spi_data_out <= {rx_shift_reg[DATA_WIDTH-2:0], spi_mosi_sync[1]};
-            spi_rec_val  <= 1'b1;
-            bit_count    <= 5'd0;
+            if(!tx_current_valid && bit_count == 0)
+            begin
+              tx_shift_reg     <= {spi_data_in[DATA_WIDTH-2:0], 1'b0};
+              tx_current_valid <= 1'b1;
+              spi_miso         <= spi_data_in[DATA_WIDTH-1];
+            end
+            else if(!tx_current_valid)
+            begin
+              tx_shift_reg     <= spi_data_in;
+              tx_current_valid <= 1'b1;
+            end
+            else
+            begin
+              tx_next_reg   <= spi_data_in;
+              tx_next_valid <= 1'b1;
+            end
           end
-          else
-            bit_count <= bit_count + 5'd1;
+
+          if(spi_clk_neg_edge && !(spi_data_val && !tx_current_valid && bit_count == 0))
+          begin
+            if(tx_current_valid)
+            begin
+              spi_miso     <= tx_shift_reg[DATA_WIDTH-1];
+              tx_shift_reg <= {tx_shift_reg[DATA_WIDTH-2:0], 1'b0};
+            end
+            else
+              spi_miso <= 1'b0;
+          end
+
+          if(spi_clk_pos_edge)
+          begin
+            rx_shift_reg <= {rx_shift_reg[DATA_WIDTH-2:0], spi_mosi_sync[1]};
+
+            if(bit_count == DATA_WIDTH - 1)
+            begin
+              spi_data_out <= {rx_shift_reg[DATA_WIDTH-2:0], spi_mosi_sync[1]};
+              spi_rec_val  <= 1'b1;
+              bit_count    <= 5'd0;
+
+              if(tx_next_valid)
+              begin
+                tx_shift_reg     <= tx_next_reg;
+                tx_current_valid <= 1'b1;
+                tx_next_valid    <= 1'b0;
+              end
+              else
+                tx_current_valid <= 1'b0;
+            end
+            else
+              bit_count <= bit_count + 5'd1;
+          end
         end
       end
     end

@@ -3,7 +3,7 @@
 <!--                                                         -->
 <!-- Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.   -->
 
-<Project Version="7" Minor="44" Path="C:/FPGA_project/xc7z020clg484-1/test_adc_19.2/test_adc_19.2.xpr">
+<Project Version="7" Minor="44" Path="C:/Users/YuDengxiang/Desktop/Electronic Design Competition/Pulse parameter measurement/2016_E/FPGA_ADC/test_adc_19.2.xpr">
   <DefaultLaunch Dir="$PRUNDIR"/>
   <Configuration>
     <Option Name="Id" Val="d5ef5f84672741e4897c8f40fc218b1f"/>
