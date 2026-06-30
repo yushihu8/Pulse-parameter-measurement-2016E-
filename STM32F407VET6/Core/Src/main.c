@@ -111,6 +111,8 @@ int main(void)
   key_init();
 	uint16_t cmd = 1;
 	capture_and_print(cmd);
+	HAL_Delay(500);
+	capture_and_print(cmd);
   /* USER CODE END 2 */
 
   /* Infinite loop */
