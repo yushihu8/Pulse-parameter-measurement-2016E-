@@ -7,7 +7,9 @@ module adc_ram_control(
     w_ram_addr,
     w_ram_data,
     w_ram_en,
-    adc_ram_en
+    adc_ram_en,
+    capture_busy,
+    capture_done
   );
 
   parameter ADC_WIDTH = 14,
@@ -22,6 +24,8 @@ module adc_ram_control(
   output [2 * ADC_WIDTH - 1:0] w_ram_data;
   output reg w_ram_en;
   input adc_ram_en;
+  output reg capture_busy;
+  output reg capture_done;
 
   reg [8:0] state;
   reg       adc_ram_en_d1;
@@ -74,6 +78,8 @@ module adc_ram_control(
     begin
       w_ram_en <= 1'd0;
       w_ram_addr <= 'd0;
+      capture_busy <= 1'd0;
+      capture_done <= 1'd0;
     end
     else
     begin
@@ -81,12 +87,18 @@ module adc_ram_control(
       case (state)
         IDLE:
         begin
+          capture_busy <= 1'd0;
           w_ram_en <= 1'd0;
           if(adc_ram_start)
+          begin
             w_ram_addr <= 'd0;
+            capture_busy <= 1'd1;
+            capture_done <= 1'd0;
+          end
         end
         ADC_WITE_DATA:
         begin
+          capture_busy <= 1'd1;
           if(adc_val)
             w_ram_en <= 1'd1;
           else
@@ -96,9 +108,16 @@ module adc_ram_control(
         begin
           w_ram_en <= 1'd0;
           if(w_ram_addr == 'd1023)
+          begin
             w_ram_addr <= 'd0;
+            capture_busy <= 1'd0;
+            capture_done <= 1'd1;
+          end
           else
+          begin
             w_ram_addr <= w_ram_addr + 'd1;
+            capture_busy <= 1'd1;
+          end
         end
         default:
         begin

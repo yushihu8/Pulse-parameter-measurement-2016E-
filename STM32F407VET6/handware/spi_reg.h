@@ -45,6 +45,13 @@
  */
 #define LAST_FRAME 0xa5a5
 
+#define FPGA_ADC_RATE_ADDR       0xa010
+#define FPGA_ADC_STATUS_ADDR     0xbb02
+#define FPGA_ADC_CLK_HZ          40960000UL
+#define FPGA_ADC_MAX_RATE_HZ     (FPGA_ADC_CLK_HZ / 2UL)
+#define FPGA_ADC_STATUS_DONE     0x0001
+#define FPGA_ADC_STATUS_BUSY     0x0002
+
 /* Exported defines - 硬件配置 ----------------------------------------*/
 /**
  * @brief  SPI外设句柄
@@ -70,5 +77,8 @@
 
 void spi_reg_write(const uint16_t *src, uint16_t addr, uint16_t size);
 void spi_reg_read(uint16_t *src, uint16_t addr, uint16_t size);
+HAL_StatusTypeDef spi_reg_set_adc_rate_hz(uint32_t adc_rate_hz, uint32_t *actual_rate_hz);
+HAL_StatusTypeDef spi_reg_wait_adc_capture_done(uint32_t timeout_ms);
+HAL_StatusTypeDef spi_reg_read_adc_channel_samples(uint16_t *dst, uint16_t sample_count, uint8_t channel_index);
 
 #endif /* __SPI_REG_H__ */

@@ -39,6 +39,8 @@ module top(
 
   wire        adc_ram_en;
   wire [15:0] adc_rata;
+  wire        capture_busy;
+  wire        capture_done;
 
   wire [31:0] dds_fword;
   wire [11:0] dds_pword;
@@ -79,7 +81,9 @@ module top(
     .w_ram_addr(w_ram_addr),
     .w_ram_data(w_ram_data),
     .w_ram_en(w_ram_en),
-    .adc_ram_en(adc_ram_en)
+    .adc_ram_en(adc_ram_en),
+    .capture_busy(capture_busy),
+    .capture_done(capture_done)
   );
 
   adc_ram adc_ram_inst0(
@@ -108,6 +112,8 @@ module top(
     .r_ram_en(r_ram_en),
     .adc_ram_en(adc_ram_en),
     .adc_rata(adc_rata),
+    .capture_busy(capture_busy),
+    .capture_done(capture_done),
     .dds_fword(dds_fword),
     .dds_pword(dds_pword)
   );

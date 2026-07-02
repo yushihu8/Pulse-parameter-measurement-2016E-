@@ -34,6 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define ADC_CAPTURE_WAIT_MS 20U
 
 /* USER CODE END PD */
 
@@ -42,18 +43,23 @@
 uint16_t adc_buff[2048];
 static void capture_and_print(uint16_t cmd)
 {
-	
+  HAL_StatusTypeDef status;
+
   spi_reg_write(&cmd, 0xbb01, 1);
+  HAL_Delay(ADC_CAPTURE_WAIT_MS);
 
-  HAL_Delay(20);
-
-  spi_reg_read(adc_buff, 0, 2*1024);
+  status = spi_reg_read_adc_channel_samples(adc_buff, 1024, 1);
+  if(status != HAL_OK)
+  {
+    printf("CAPTURE_READ_FAIL,cmd=0x%04X\r\n", cmd);
+    return;
+  }
 
   printf("CAPTURE_BEGIN,cmd=0x%04X,samples=%u\r\n", cmd, 1024);
 
   for (uint16_t i = 0; i < 1024; i++)
   {
-    printf("%u\r\n",adc_buff[2 * i + 1]);
+    printf("%u\r\n",adc_buff[i]);
   }
 }
 
@@ -113,6 +119,7 @@ int main(void)
 	capture_and_print(cmd);
 	HAL_Delay(500);
 	capture_and_print(cmd);
+	uint32_t actual_rate = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -128,7 +135,20 @@ int main(void)
 		{
 			capture_and_print(cmd);
 		}
-		
+		if(key_press_flag & KEY1_PRESS_FLAG)
+		{
+			if (spi_reg_set_adc_rate_hz(204800, &actual_rate) == HAL_OK)
+			{
+					printf("ADC rate set to %d Hz\r\n", actual_rate);
+			}
+		}
+		if(key_press_flag & KEY3_PRESS_FLAG)
+		{
+			if (spi_reg_set_adc_rate_hz(1000000, &actual_rate) == HAL_OK)
+			{
+					printf("ADC rate set to %d Hz\r\n", actual_rate);
+			}
+		}
   }
   /* USER CODE END 3 */
 }

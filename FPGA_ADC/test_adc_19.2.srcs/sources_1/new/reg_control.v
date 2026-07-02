@@ -19,12 +19,15 @@ module reg_control(
     output wire        r_ram_en,
     output reg         adc_ram_en,
     output reg  [15:0] adc_rata,
+    input  wire        capture_busy,
+    input  wire        capture_done,
     output reg  [31:0] dds_fword,
     output reg  [11:0] dds_pword
   );
   reg r_reg_en_temp;
   localparam ADC_RATE         = 16'hA010,
              ADC_RAM_EN_ADDR  = 16'hBB01,
+             ADC_STATUS_ADDR  = 16'hBB02,
              DDS_FWORD_H_ADDR = 16'hCC01,
              DDS_FWORD_L_ADDR = 16'hCC02,
              DDS_PWORD_ADDR   = 16'hCC03;
@@ -78,6 +81,8 @@ module reg_control(
         case (r_reg_addr)
           ADC_RATE:
             r_reg_data <= adc_rata;
+          ADC_STATUS_ADDR:
+            r_reg_data <= {14'd0, capture_busy, capture_done};
           DDS_FWORD_H_ADDR:
             r_reg_data <= dds_fword[31:16];
           DDS_FWORD_L_ADDR:

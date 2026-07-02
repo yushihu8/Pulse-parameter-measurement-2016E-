@@ -25,6 +25,8 @@ module spi_reg_control(
     // Custom register ports
     output wire        adc_ram_en,
     output wire [15:0] adc_rata,
+    input  wire        capture_busy,
+    input  wire        capture_done,
     
 //    output wire [13:0] dac_out
     output  wire    [31:0]   dds_fword,
@@ -71,6 +73,8 @@ module spi_reg_control(
                 .r_ram_en(r_ram_en),
                 .adc_ram_en(adc_ram_en),
                 .adc_rata(adc_rata),
+                .capture_busy(capture_busy),
+                .capture_done(capture_done),
  //               .dac_out(dac_out)
                 .dds_fword(dds_fword),
                 .dds_pword(dds_pword)
