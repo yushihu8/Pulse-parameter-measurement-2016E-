@@ -1,7 +1,7 @@
 // Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.
 // --------------------------------------------------------------------------------
 // Tool Version: Vivado v.2019.2 (win64) Build 2708876 Wed Nov  6 21:40:23 MST 2019
-// Date        : Thu May 14 12:35:07 2026
+// Date        : Thu Jul  2 15:46:56 2026
 // Host        : nine running 64-bit major release  (build 9200)
 // Command     : write_verilog -force -mode funcsim -rename_top clk_wiz_40_96m -prefix
 //               clk_wiz_40_96m_ clk_wiz_40_96m_sim_netlist.v
@@ -86,7 +86,7 @@ module clk_wiz_40_96m_clk_wiz_40_96m_clk_wiz
   (* BOX_TYPE = "PRIMITIVE" *) 
   MMCME2_ADV #(
     .BANDWIDTH("OPTIMIZED"),
-    .CLKFBOUT_MULT_F(64.000000),
+    .CLKFBOUT_MULT_F(40.625000),
     .CLKFBOUT_PHASE(0.000000),
     .CLKFBOUT_USE_FINE_PS("FALSE"),
     .CLKIN1_PERIOD(20.000000),
@@ -121,7 +121,7 @@ module clk_wiz_40_96m_clk_wiz_40_96m_clk_wiz
     .CLKOUT6_PHASE(0.000000),
     .CLKOUT6_USE_FINE_PS("FALSE"),
     .COMPENSATION("BUF_IN"),
-    .DIVCLK_DIVIDE(5),
+    .DIVCLK_DIVIDE(2),
     .IS_CLKINSEL_INVERTED(1'b0),
     .IS_PSEN_INVERTED(1'b0),
     .IS_PSINCDEC_INVERTED(1'b0),
