@@ -25,11 +25,16 @@ module ad9248(
   input [15:0]clk_tim_count; //clk_tim_count = clk / adc_rate / 2 - 1
 
   reg [15:0]tim_count;
+  wire max_rate_mode;
+
+  assign max_rate_mode = (clk_tim_count == 16'd0);
 
   always @(posedge clk or negedge rstn)
   begin
     if(!rstn)
       tim_count <= 1;
+    else if(max_rate_mode)
+      tim_count <= 0;
     else
     begin
       if(tim_count == clk_tim_count)
@@ -43,6 +48,8 @@ module ad9248(
   begin
     if(!rstn)
       adc_clk <= 1;
+    else if(max_rate_mode)
+      adc_clk <= ~adc_clk;
     else if(tim_count == clk_tim_count)
       adc_clk <= ~adc_clk;
   end
@@ -54,7 +61,17 @@ module ad9248(
       adc_out <= 0;
       adc_val <= 0;
     end
-    else if(tim_count == clk_tim_count - 1 & adc_clk)
+    else if(max_rate_mode)
+    begin
+      if(adc_clk)
+      begin
+        adc_out <= adc_in;
+        adc_val <= 1;
+      end
+      else
+        adc_val <= 0;
+    end
+    else if((tim_count == (clk_tim_count - 1)) && adc_clk)
     begin
       adc_out <= adc_in;
       adc_val <= 1;

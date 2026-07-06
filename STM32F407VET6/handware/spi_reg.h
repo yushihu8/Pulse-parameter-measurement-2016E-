@@ -47,7 +47,7 @@
 
 #define FPGA_ADC_RATE_ADDR       0xa010
 #define FPGA_ADC_STATUS_ADDR     0xbb02
-#define FPGA_ADC_CLK_HZ          120000000UL
+#define FPGA_ADC_CLK_HZ          130000000UL
 #define FPGA_ADC_MAX_RATE_HZ     (FPGA_ADC_CLK_HZ / 2UL)
 #define FPGA_ADC_STATUS_DONE     0x0001
 #define FPGA_ADC_STATUS_BUSY     0x0002
