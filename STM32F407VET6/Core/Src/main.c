@@ -151,7 +151,7 @@ int main(void)
 		}
 		if(key_press_flag & KEY4_PRESS_FLAG)
 		{
-			if (spi_reg_set_adc_rate_hz(50000000, &actual_rate) == HAL_OK)
+			if (spi_reg_set_adc_rate_hz(60000000, &actual_rate) == HAL_OK)
 			{
 					printf("ADC rate set to %d Hz\r\n", actual_rate);
 			}
