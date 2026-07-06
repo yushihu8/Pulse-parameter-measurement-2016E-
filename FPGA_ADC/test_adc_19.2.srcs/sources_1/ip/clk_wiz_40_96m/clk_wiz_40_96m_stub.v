@@ -1,7 +1,7 @@
 // Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.
 // --------------------------------------------------------------------------------
 // Tool Version: Vivado v.2019.2 (win64) Build 2708876 Wed Nov  6 21:40:23 MST 2019
-// Date        : Thu Jul  2 15:46:56 2026
+// Date        : Thu Jul  2 15:22:43 2026
 // Host        : nine running 64-bit major release  (build 9200)
 // Command     : write_verilog -force -mode synth_stub -rename_top clk_wiz_40_96m -prefix
 //               clk_wiz_40_96m_ clk_wiz_40_96m_stub.v
