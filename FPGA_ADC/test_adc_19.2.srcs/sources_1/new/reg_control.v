@@ -43,7 +43,7 @@ module reg_control(
       w_ram_addr    <= 16'd0;
       r_reg_en_temp <= 1'd0;
       adc_ram_en    <= 1'd0;
-      adc_rata      <= 16'd99;
+      adc_rata      <= 16'd0;
       dds_fword     <= 32'd0;
       dds_pword     <= 12'd0;
     end
@@ -57,7 +57,7 @@ module reg_control(
           ADC_RAM_EN_ADDR:
             adc_ram_en <= 1'd1;
           ADC_RATE:
-            adc_rata <= w_reg_data;
+            adc_rata <= 16'd0;
           DDS_FWORD_H_ADDR:
             dds_fword[31:16] <= w_reg_data;
           DDS_FWORD_L_ADDR:

@@ -12,8 +12,7 @@ module ad9248(
     adc_clk,
     adc_in,
     adc_out,
-    adc_val,
-    clk_tim_count
+    adc_val
   );
 
   input clk;
@@ -22,36 +21,23 @@ module ad9248(
   input [13:0]adc_in;
   output reg[13:0]adc_out;
   output reg adc_val;
-  input [15:0]clk_tim_count; //clk_tim_count = clk / adc_rate / 2 - 1
 
-  reg [15:0]tim_count;
-  wire max_rate_mode;
-
-  assign max_rate_mode = (clk_tim_count == 16'd0);
-
-  always @(posedge clk or negedge rstn)
-  begin
-    if(!rstn)
-      tim_count <= 1;
-    else if(max_rate_mode)
-      tim_count <= 0;
-    else
-    begin
-      if(tim_count == clk_tim_count)
-        tim_count <= 0;
-      else
-        tim_count <= tim_count + 1;
-    end
-  end
+  reg [13:0]adc_sample_data;
 
   always @(posedge clk or negedge rstn)
   begin
     if(!rstn)
       adc_clk <= 1;
-    else if(max_rate_mode)
+    else
       adc_clk <= ~adc_clk;
-    else if(tim_count == clk_tim_count)
-      adc_clk <= ~adc_clk;
+  end
+
+  always @(negedge clk or negedge rstn)
+  begin
+    if(!rstn)
+      adc_sample_data <= 14'd0;
+    else if(adc_clk)
+      adc_sample_data <= adc_in;
   end
 
   always @(posedge clk or negedge rstn)
@@ -61,19 +47,9 @@ module ad9248(
       adc_out <= 0;
       adc_val <= 0;
     end
-    else if(max_rate_mode)
+    else if(adc_clk)
     begin
-      if(adc_clk)
-      begin
-        adc_out <= adc_in;
-        adc_val <= 1;
-      end
-      else
-        adc_val <= 0;
-    end
-    else if((tim_count == (clk_tim_count - 1)) && adc_clk)
-    begin
-      adc_out <= adc_in;
+      adc_out <= adc_sample_data;
       adc_val <= 1;
     end
     else
