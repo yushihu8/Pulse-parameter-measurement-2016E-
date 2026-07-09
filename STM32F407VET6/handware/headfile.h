@@ -17,5 +17,6 @@
 
 #include "key_app.h"
 #include  "spi_reg.h"
+#include "pulse_measure.h"
 
 #endif  

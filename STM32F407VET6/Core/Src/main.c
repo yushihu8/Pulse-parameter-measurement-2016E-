@@ -25,6 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "headfile.h"
+#include "lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,31 +36,175 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define ADC_CAPTURE_WAIT_MS 20U
+#define ADC_CAPTURE_SAMPLE_COUNT 1024U
+#define ADC_SAMPLE_RATE_HZ 50000000.0f
+#define ADC_FULL_SCALE_VPP 4.0f
+#define ADC_MAX_CODE 16383U
 
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-uint16_t adc_buff[2048];
+static uint16_t adc_raw_buff[ADC_CAPTURE_SAMPLE_COUNT];
+static uint16_t adc_work_buff[ADC_CAPTURE_SAMPLE_COUNT];
+static pulse_measure_config_t g_pulse_cfg;
+static pulse_measure_result_t g_pulse_result;
+
+static uint32_t scale_positive_float(float value, float scale)
+{
+  if(value <= 0.0f)
+  {
+    return 0U;
+  }
+
+  return (uint32_t)((value * scale) + 0.5f);
+}
+
+static void lcd_clear_value_line(uint16_t y)
+{
+  LCD_Fill(150U, y, 305U, y + 24U, WHITE);
+}
+
+static void lcd_show_placeholder(uint16_t y)
+{
+  lcd_clear_value_line(y);
+  LCD_ShowString(150U, y, (const uint8_t *)"--", RED, WHITE, 24U, 0U);
+}
+
+static void lcd_show_status_text(const char *text, uint16_t color)
+{
+  lcd_clear_value_line(70U);
+  LCD_ShowString(150U, 70U, (const uint8_t *)text, color, WHITE, 24U, 0U);
+}
+
+static void lcd_draw_measure_ui(void)
+{
+  LCD_Fill(0U, 0U, 320U, 240U, WHITE);
+  LCD_DrawRectangle(8U, 8U, 312U, 232U, BLUE);
+  LCD_DrawLine(8U, 46U, 312U, 46U, LIGHTBLUE);
+
+  LCD_ShowString(18U, 16U, (const uint8_t *)"Pulse Measure", BLUE, WHITE, 24U, 0U);
+  LCD_ShowString(20U, 70U, (const uint8_t *)"State:", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, 105U, (const uint8_t *)"Amp(Vpp):", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, 140U, (const uint8_t *)"Rise(ns):", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, 175U, (const uint8_t *)"ZeroCnt:", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, 210U, (const uint8_t *)"KEY2 capture", GRAYBLUE, WHITE, 16U, 0U);
+
+  lcd_show_status_text("IDLE", GRAYBLUE);
+  lcd_show_placeholder(105U);
+  lcd_show_placeholder(140U);
+  lcd_show_placeholder(175U);
+}
+
+static void lcd_show_measure_result(const pulse_measure_result_t *result, bool capture_ok)
+{
+  uint32_t amplitude_mv = 0U;
+  uint32_t rise_time_10x_ns = 0U;
+
+  if(result == NULL)
+  {
+    lcd_show_status_text("NO_DATA", RED);
+    lcd_show_placeholder(105U);
+    lcd_show_placeholder(140U);
+    lcd_show_placeholder(175U);
+    return;
+  }
+
+  lcd_clear_value_line(175U);
+  LcdSprintf(150U, 175U, BLACK, WHITE, 24U, 0U, "%u", result->zero_count);
+
+  if(!capture_ok)
+  {
+    if(result->zero_count > g_pulse_cfg.bad_zero_limit)
+    {
+      lcd_show_status_text("ZERO_ERR", RED);
+    }
+    else
+    {
+      lcd_show_status_text("BAD_FRAME", RED);
+    }
+
+    lcd_show_placeholder(105U);
+    lcd_show_placeholder(140U);
+    return;
+  }
+
+  amplitude_mv = scale_positive_float(result->amplitude_vpp, 1000.0f);
+  lcd_clear_value_line(105U);
+  LcdSprintf(150U,
+             105U,
+             BLUE,
+             WHITE,
+             24U,
+             0U,
+             "%lu.%03lu",
+             (unsigned long)(amplitude_mv / 1000U),
+             (unsigned long)(amplitude_mv % 1000U));
+
+  if(result->rise_time_valid)
+  {
+    rise_time_10x_ns = scale_positive_float(result->rise_time_ns, 10.0f);
+    lcd_clear_value_line(140U);
+    LcdSprintf(150U,
+               140U,
+               BLUE,
+               WHITE,
+               24U,
+               0U,
+               "%lu.%01lu",
+               (unsigned long)(rise_time_10x_ns / 10U),
+               (unsigned long)(rise_time_10x_ns % 10U));
+    lcd_show_status_text("OK", GREEN);
+  }
+  else
+  {
+    lcd_clear_value_line(140U);
+    LCD_ShowString(150U, 140U, (const uint8_t *)"N/A", MAGENTA, WHITE, 24U, 0U);
+    lcd_show_status_text("NO_EDGE", MAGENTA);
+  }
+}
+
 static void capture_and_print(uint16_t cmd)
 {
   HAL_StatusTypeDef status;
+  bool measure_ok;
+  uint32_t amplitude_mv = 0U;
+  uint32_t rise_time_10x_ns = 0U;
 
   spi_reg_write(&cmd, 0xbb01, 1);
   HAL_Delay(ADC_CAPTURE_WAIT_MS);
 
-  status = spi_reg_read_adc_channel_samples(adc_buff, 1024, 1);
+  status = spi_reg_read_adc_channel_samples(adc_raw_buff, ADC_CAPTURE_SAMPLE_COUNT, 1);
   if(status != HAL_OK)
   {
     printf("CAPTURE_READ_FAIL,cmd=0x%04X\r\n", cmd);
+    lcd_show_status_text("SPI_FAIL", RED);
+    lcd_show_placeholder(105U);
+    lcd_show_placeholder(140U);
+    lcd_show_placeholder(175U);
     return;
   }
 
-  printf("CAPTURE_BEGIN,cmd=0x%04X,samples=%u\r\n", cmd, 1024);
+  memcpy(adc_work_buff, adc_raw_buff, sizeof(adc_work_buff));
+  measure_ok = pulse_measure_analyze(adc_work_buff,
+                                     ADC_CAPTURE_SAMPLE_COUNT,
+                                     &g_pulse_cfg,
+                                     &g_pulse_result);
+  lcd_show_measure_result(&g_pulse_result, measure_ok);
 
-  for (uint16_t i = 0; i < 1024; i++)
+  amplitude_mv = scale_positive_float(g_pulse_result.amplitude_vpp, 1000.0f);
+  rise_time_10x_ns = scale_positive_float(g_pulse_result.rise_time_ns, 10.0f);
+  printf("MEASURE,cmd=0x%04X,ok=%u,zero=%u,amp_mv=%lu,rise_x10ns=%lu\r\n",
+         cmd,
+         measure_ok ? 1U : 0U,
+         g_pulse_result.zero_count,
+         (unsigned long)amplitude_mv,
+         (unsigned long)rise_time_10x_ns);
+  printf("CAPTURE_BEGIN,cmd=0x%04X,samples=%u\r\n", cmd, ADC_CAPTURE_SAMPLE_COUNT);
+
+  for (uint16_t i = 0; i < ADC_CAPTURE_SAMPLE_COUNT; i++)
   {
-    printf("%u\r\n",adc_buff[i]);
+    printf("%u\r\n", adc_raw_buff[i]);
   }
 }
 
@@ -114,12 +259,18 @@ int main(void)
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  LCD_Init();
+  lcd_draw_measure_ui();
+  pulse_measure_get_default_config(&g_pulse_cfg);
+  g_pulse_cfg.sample_rate_hz = ADC_SAMPLE_RATE_HZ;
+  g_pulse_cfg.adc_full_scale_vpp = ADC_FULL_SCALE_VPP;
+  g_pulse_cfg.adc_max_code = ADC_MAX_CODE;
+
   key_init();
 	uint16_t cmd = 1;
 	capture_and_print(cmd);
 	HAL_Delay(500);
 	capture_and_print(cmd);
-	uint32_t actual_rate = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -134,27 +285,6 @@ int main(void)
 		if(key_press_flag & KEY2_PRESS_FLAG)
 		{
 			capture_and_print(cmd);
-		}
-		if(key_press_flag & KEY1_PRESS_FLAG)
-		{
-			if (spi_reg_set_adc_rate_hz(204800, &actual_rate) == HAL_OK)
-			{
-					printf("ADC rate set to %d Hz\r\n", actual_rate);
-			}
-		}
-		if(key_press_flag & KEY3_PRESS_FLAG)
-		{
-			if (spi_reg_set_adc_rate_hz(30000000, &actual_rate) == HAL_OK)
-			{
-					printf("ADC rate set to %d Hz\r\n", actual_rate);
-			}
-		}
-		if(key_press_flag & KEY4_PRESS_FLAG)
-		{
-			if (spi_reg_set_adc_rate_hz(60000000, &actual_rate) == HAL_OK)
-			{
-					printf("ADC rate set to %d Hz\r\n", actual_rate);
-			}
 		}
   }
   /* USER CODE END 3 */

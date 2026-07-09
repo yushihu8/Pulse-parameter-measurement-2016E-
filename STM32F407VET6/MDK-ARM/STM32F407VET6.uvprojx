@@ -539,6 +539,46 @@
               <FileType>1</FileType>
               <FilePath>..\handware\spi_reg.c</FilePath>
             </File>
+            <File>
+              <FileName>pulse_measure.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\handware\pulse_measure.h</FilePath>
+            </File>
+            <File>
+              <FileName>pulse_measure.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\handware\pulse_measure.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>lcd_handware</GroupName>
+          <Files>
+            <File>
+              <FileName>lcd.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\lcd_handware\lcd.h</FilePath>
+            </File>
+            <File>
+              <FileName>lcd.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\lcd_handware\lcd.c</FilePath>
+            </File>
+            <File>
+              <FileName>lcd_init.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\lcd_handware\lcd_init.h</FilePath>
+            </File>
+            <File>
+              <FileName>lcd_init.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\lcd_handware\lcd_init.c</FilePath>
+            </File>
+            <File>
+              <FileName>lcdfont.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\lcd_handware\lcdfont.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
