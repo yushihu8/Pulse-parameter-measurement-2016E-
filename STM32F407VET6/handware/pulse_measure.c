@@ -7,8 +7,10 @@
 #define PULSE_MEASURE_DEFAULT_FULL_VPP     4.0f
 #define PULSE_MEASURE_DEFAULT_ADC_MAX_CODE 16383U
 #define PULSE_MEASURE_DEFAULT_LEVEL_AVG    8U
-#define PULSE_MEASURE_DEFAULT_BAD_ZERO     2U
+#define PULSE_MEASURE_DEFAULT_BAD_ZERO     UINT16_MAX
 #define PULSE_MEASURE_DEFAULT_MIN_AMP      20U
+#define PULSE_MEASURE_DEFAULT_EDGE_GUARD   20U
+#define PULSE_MEASURE_DEFAULT_MIN_RISE_SPAN 6U
 
 static void pulse_measure_insert_smallest(uint16_t *values, uint16_t count, uint16_t sample)
 {
@@ -136,7 +138,7 @@ static bool pulse_measure_calc_levels(const uint16_t *samples,
     return false;
   }
 
-  result->amplitude_code = (uint16_t)(result->high_code - result->low_code);
+  result->amplitude_code = (uint16_t)(result->high_code - result->low_code)*0.93;
   result->amplitude_vpp = ((float)result->amplitude_code / (float)config->adc_max_code) *
                           config->adc_full_scale_vpp;
 
@@ -184,6 +186,14 @@ static bool pulse_measure_calc_rise_time(const uint16_t *samples,
   float ts_ns = 1000000000.0f / config->sample_rate_hz;
   uint16_t cross10_index = 0U;
   uint16_t cross90_index = 0U;
+  uint16_t rise_span = 0U;
+  uint16_t drop_steps = 0U;
+
+  if((config->sample_rate_hz <= 0.0f) ||
+     (sample_count <= (uint16_t)(config->edge_guard_samples * 2U + 2U)))
+  {
+    return false;
+  }
 
   if(!pulse_measure_find_crossing(samples,
                                   sample_count,
@@ -207,7 +217,32 @@ static bool pulse_measure_calc_rise_time(const uint16_t *samples,
     return false;
   }
 
-  (void)cross90_index;
+  if((cross10_index < config->edge_guard_samples) ||
+     (cross90_index >= (uint16_t)(sample_count - config->edge_guard_samples - 1U)) ||
+     (cross90_index <= cross10_index))
+  {
+    return false;
+  }
+
+  rise_span = (uint16_t)(cross90_index - cross10_index + 1U);
+  if(rise_span < config->min_rise_span_samples)
+  {
+    return false;
+  }
+
+  for(uint16_t i = cross10_index; i < cross90_index; i++)
+  {
+    if(samples[i + 1U] < samples[i])
+    {
+      drop_steps++;
+    }
+  }
+
+  if(drop_steps > (rise_span / 4U))
+  {
+    return false;
+  }
+
   result->rise_time_ns = result->t90_ns - result->t10_ns;
 
   return (result->rise_time_ns > 0.0f);
@@ -226,6 +261,8 @@ void pulse_measure_get_default_config(pulse_measure_config_t *config)
   config->level_avg_count = PULSE_MEASURE_DEFAULT_LEVEL_AVG;
   config->bad_zero_limit = PULSE_MEASURE_DEFAULT_BAD_ZERO;
   config->min_amplitude_code = PULSE_MEASURE_DEFAULT_MIN_AMP;
+  config->edge_guard_samples = PULSE_MEASURE_DEFAULT_EDGE_GUARD;
+  config->min_rise_span_samples = PULSE_MEASURE_DEFAULT_MIN_RISE_SPAN;
 }
 
 bool pulse_measure_analyze(uint16_t *samples,
@@ -253,7 +290,8 @@ bool pulse_measure_analyze(uint16_t *samples,
   result->t90_ns = -1.0f;
 
   pulse_measure_repair_samples(samples, sample_count, &result->zero_count);
-  if(result->zero_count > active_config->bad_zero_limit)
+  if((active_config->bad_zero_limit != UINT16_MAX) &&
+     (result->zero_count > active_config->bad_zero_limit))
   {
     return false;
   }

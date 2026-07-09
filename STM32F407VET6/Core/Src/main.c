@@ -40,6 +40,7 @@
 #define ADC_SAMPLE_RATE_HZ 50000000.0f
 #define ADC_FULL_SCALE_VPP 4.0f
 #define ADC_MAX_CODE 16383U
+#define LCD_AUTO_REFRESH_INTERVAL_MS 200U
 
 /* USER CODE END PD */
 
@@ -49,6 +50,8 @@ static uint16_t adc_raw_buff[ADC_CAPTURE_SAMPLE_COUNT];
 static uint16_t adc_work_buff[ADC_CAPTURE_SAMPLE_COUNT];
 static pulse_measure_config_t g_pulse_cfg;
 static pulse_measure_result_t g_pulse_result;
+static pulse_measure_result_t g_last_valid_result;
+static bool g_have_last_valid_result = false;
 
 static uint32_t scale_positive_float(float value, float scale)
 {
@@ -115,7 +118,8 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
 
   if(!capture_ok)
   {
-    if(result->zero_count > g_pulse_cfg.bad_zero_limit)
+    if((g_pulse_cfg.bad_zero_limit != 0xFFFFU) &&
+       (result->zero_count > g_pulse_cfg.bad_zero_limit))
     {
       lcd_show_status_text("ZERO_ERR", RED);
     }
@@ -130,19 +134,18 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
   }
 
   amplitude_mv = scale_positive_float(result->amplitude_vpp, 1000.0f);
-  lcd_clear_value_line(105U);
-  LcdSprintf(150U,
-             105U,
-             BLUE,
-             WHITE,
-             24U,
-             0U,
-             "%lu.%03lu",
-             (unsigned long)(amplitude_mv / 1000U),
-             (unsigned long)(amplitude_mv % 1000U));
-
   if(result->rise_time_valid)
   {
+    lcd_clear_value_line(105U);
+    LcdSprintf(150U,
+               105U,
+               BLUE,
+               WHITE,
+               24U,
+               0U,
+               "%lu.%03lu",
+               (unsigned long)(amplitude_mv / 1000U),
+               (unsigned long)(amplitude_mv % 1000U));
     rise_time_10x_ns = scale_positive_float(result->rise_time_ns, 10.0f);
     lcd_clear_value_line(140U);
     LcdSprintf(150U,
@@ -154,22 +157,30 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
                "%lu.%01lu",
                (unsigned long)(rise_time_10x_ns / 10U),
                (unsigned long)(rise_time_10x_ns % 10U));
+    g_last_valid_result = *result;
+    g_have_last_valid_result = true;
     lcd_show_status_text("OK", GREEN);
   }
   else
   {
-    lcd_clear_value_line(140U);
-    LCD_ShowString(150U, 140U, (const uint8_t *)"N/A", MAGENTA, WHITE, 24U, 0U);
-    lcd_show_status_text("NO_EDGE", MAGENTA);
+    if(g_have_last_valid_result)
+    {
+      lcd_show_status_text("HOLD", MAGENTA);
+    }
+    else
+    {
+      lcd_show_placeholder(105U);
+      lcd_clear_value_line(140U);
+      LCD_ShowString(150U, 140U, (const uint8_t *)"N/A", MAGENTA, WHITE, 24U, 0U);
+      lcd_show_status_text("NO_EDGE", MAGENTA);
+    }
   }
 }
 
-static void capture_and_print(uint16_t cmd)
+static void capture_and_print(uint16_t cmd, bool dump_samples)
 {
   HAL_StatusTypeDef status;
   bool measure_ok;
-  uint32_t amplitude_mv = 0U;
-  uint32_t rise_time_10x_ns = 0U;
 
   spi_reg_write(&cmd, 0xbb01, 1);
   HAL_Delay(ADC_CAPTURE_WAIT_MS);
@@ -192,14 +203,11 @@ static void capture_and_print(uint16_t cmd)
                                      &g_pulse_result);
   lcd_show_measure_result(&g_pulse_result, measure_ok);
 
-  amplitude_mv = scale_positive_float(g_pulse_result.amplitude_vpp, 1000.0f);
-  rise_time_10x_ns = scale_positive_float(g_pulse_result.rise_time_ns, 10.0f);
-  printf("MEASURE,cmd=0x%04X,ok=%u,zero=%u,amp_mv=%lu,rise_x10ns=%lu\r\n",
-         cmd,
-         measure_ok ? 1U : 0U,
-         g_pulse_result.zero_count,
-         (unsigned long)amplitude_mv,
-         (unsigned long)rise_time_10x_ns);
+  if(!dump_samples)
+  {
+    return;
+  }
+
   printf("CAPTURE_BEGIN,cmd=0x%04X,samples=%u\r\n", cmd, ADC_CAPTURE_SAMPLE_COUNT);
 
   for (uint16_t i = 0; i < ADC_CAPTURE_SAMPLE_COUNT; i++)
@@ -268,23 +276,28 @@ int main(void)
 
   key_init();
 	uint16_t cmd = 1;
-	capture_and_print(cmd);
-	HAL_Delay(500);
-	capture_and_print(cmd);
+	capture_and_print(cmd, false);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		static uint32_t last_capture_tick = 0U;
 		
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
     key_proc();
+		if((HAL_GetTick() - last_capture_tick) >= LCD_AUTO_REFRESH_INTERVAL_MS)
+		{
+			capture_and_print(cmd, false);
+			last_capture_tick = HAL_GetTick();
+		}
 		if(key_press_flag & KEY2_PRESS_FLAG)
 		{
-			capture_and_print(cmd);
+			capture_and_print(cmd, true);
+			last_capture_tick = HAL_GetTick();
 		}
   }
   /* USER CODE END 3 */

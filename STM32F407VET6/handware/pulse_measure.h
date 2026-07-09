@@ -12,6 +12,8 @@ typedef struct
   uint16_t level_avg_count;
   uint16_t bad_zero_limit;
   uint16_t min_amplitude_code;
+  uint16_t edge_guard_samples;
+  uint16_t min_rise_span_samples;
 } pulse_measure_config_t;
 
 typedef struct
