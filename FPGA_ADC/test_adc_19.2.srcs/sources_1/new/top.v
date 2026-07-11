@@ -14,6 +14,7 @@ module top(
     input  wire        spi_clk,
     input  wire        spi_mosi,
     output wire        spi_miso,
+    input  wire        ext_trig,
 
     output wire        adc_clk0,
     input  wire [13:0] adc_in0,
@@ -41,6 +42,10 @@ module top(
   wire [15:0] adc_rata;
   wire        capture_busy;
   wire        capture_done;
+  wire [31:0] freq_period_samples;
+  wire [31:0] freq_high_samples;
+  wire [31:0] freq_low_samples;
+  wire [15:0] freq_status;
 
   wire [31:0] dds_fword;
   wire [11:0] dds_pword;
@@ -95,6 +100,17 @@ module top(
     .doutb(r_ram_dout)
   );
 
+  freq_duty_meter freq_duty_meter_inst0(
+    .sys_clk(clk),
+    .rstn(rstn),
+    .clk_stand(clk_out40_96m),
+    .clk_test(ext_trig),
+    .period_samples(freq_period_samples),
+    .high_samples(freq_high_samples),
+    .low_samples(freq_low_samples),
+    .status(freq_status)
+  );
+
   spi_reg_control spi_reg_control_inst0(
     .clk(clk_out40_96m),
     .rstn(rstn),
@@ -112,6 +128,10 @@ module top(
     .adc_rata(adc_rata),
     .capture_busy(capture_busy),
     .capture_done(capture_done),
+    .freq_period_samples(freq_period_samples),
+    .freq_high_samples(freq_high_samples),
+    .freq_low_samples(freq_low_samples),
+    .freq_status(freq_status),
     .dds_fword(dds_fword),
     .dds_pword(dds_pword)
   );

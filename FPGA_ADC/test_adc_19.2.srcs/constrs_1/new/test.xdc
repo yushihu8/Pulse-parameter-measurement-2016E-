@@ -64,6 +64,7 @@ set_property IOSTANDARD LVCMOS33 [get_ports spi_clk]
 set_property IOSTANDARD LVCMOS33 [get_ports spi_cs]
 set_property IOSTANDARD LVCMOS33 [get_ports spi_miso]
 set_property IOSTANDARD LVCMOS33 [get_ports spi_mosi]
+# set_property IOSTANDARD LVCMOS33 [get_ports ext_trig]
 
 set_property PACKAGE_PIN V22 [get_ports adc_clk1]
 set_property PACKAGE_PIN V14 [get_ports adc_clk0]
@@ -73,5 +74,9 @@ set_property PACKAGE_PIN T22 [get_ports spi_cs]
 set_property PACKAGE_PIN U22 [get_ports spi_clk]
 set_property PACKAGE_PIN F18 [get_ports spi_miso]
 set_property PACKAGE_PIN E18 [get_ports spi_mosi]
+# set_property PACKAGE_PIN <YOUR_EXT_TRIG_PIN> [get_ports ext_trig]
 
 create_clock -period 20.000 -name clk -waveform {0.000 10.000} [get_ports clk]
+
+set_property IOSTANDARD LVCMOS33 [get_ports ext_trig]
+set_property PACKAGE_PIN C20 [get_ports ext_trig]

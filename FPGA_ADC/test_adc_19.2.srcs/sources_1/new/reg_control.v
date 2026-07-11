@@ -21,6 +21,10 @@ module reg_control(
     output reg  [15:0] adc_rata,
     input  wire        capture_busy,
     input  wire        capture_done,
+    input  wire [31:0] freq_period_samples,
+    input  wire [31:0] freq_high_samples,
+    input  wire [31:0] freq_low_samples,
+    input  wire [15:0] freq_status,
     output reg  [31:0] dds_fword,
     output reg  [11:0] dds_pword
   );
@@ -28,6 +32,13 @@ module reg_control(
   localparam ADC_RATE         = 16'hA010,
              ADC_RAM_EN_ADDR  = 16'hBB01,
              ADC_STATUS_ADDR  = 16'hBB02,
+             FREQ_STATUS_ADDR = 16'hBB10,
+             PERIOD_H_ADDR    = 16'hBB11,
+             PERIOD_L_ADDR    = 16'hBB12,
+             HIGH_H_ADDR      = 16'hBB13,
+             HIGH_L_ADDR      = 16'hBB14,
+             LOW_H_ADDR       = 16'hBB15,
+             LOW_L_ADDR       = 16'hBB16,
              DDS_FWORD_H_ADDR = 16'hCC01,
              DDS_FWORD_L_ADDR = 16'hCC02,
              DDS_PWORD_ADDR   = 16'hCC03;
@@ -83,6 +94,20 @@ module reg_control(
             r_reg_data <= adc_rata;
           ADC_STATUS_ADDR:
             r_reg_data <= {14'd0, capture_busy, capture_done};
+          FREQ_STATUS_ADDR:
+            r_reg_data <= freq_status;
+          PERIOD_H_ADDR:
+            r_reg_data <= freq_period_samples[31:16];
+          PERIOD_L_ADDR:
+            r_reg_data <= freq_period_samples[15:0];
+          HIGH_H_ADDR:
+            r_reg_data <= freq_high_samples[31:16];
+          HIGH_L_ADDR:
+            r_reg_data <= freq_high_samples[15:0];
+          LOW_H_ADDR:
+            r_reg_data <= freq_low_samples[31:16];
+          LOW_L_ADDR:
+            r_reg_data <= freq_low_samples[15:0];
           DDS_FWORD_H_ADDR:
             r_reg_data <= dds_fword[31:16];
           DDS_FWORD_L_ADDR:

@@ -37,10 +37,18 @@
 /* USER CODE BEGIN PD */
 #define ADC_CAPTURE_WAIT_MS 20U
 #define ADC_CAPTURE_SAMPLE_COUNT 1024U
-#define ADC_SAMPLE_RATE_HZ 50000000.0f
+#define ADC_SAMPLE_RATE_HZ FPGA_ADC_SAMPLE_RATE_HZ
 #define ADC_FULL_SCALE_VPP 4.0f
 #define ADC_MAX_CODE 16383U
 #define LCD_AUTO_REFRESH_INTERVAL_MS 200U
+#define LCD_VALUE_X 150U
+#define LCD_STATUS_Y 56U
+#define LCD_AMP_Y 84U
+#define LCD_RISE_Y 112U
+#define LCD_FREQ_Y 140U
+#define LCD_DUTY_Y 168U
+#define LCD_ZERO_Y 196U
+#define LCD_NOTE_Y 220U
 
 /* USER CODE END PD */
 
@@ -52,6 +60,10 @@ static pulse_measure_config_t g_pulse_cfg;
 static pulse_measure_result_t g_pulse_result;
 static pulse_measure_result_t g_last_valid_result;
 static bool g_have_last_valid_result = false;
+static uint16_t g_freq_status = 0U;
+static uint32_t g_freq_period_samples = 0U;
+static uint32_t g_freq_high_samples = 0U;
+static uint32_t g_freq_low_samples = 0U;
 
 static uint32_t scale_positive_float(float value, float scale)
 {
@@ -65,19 +77,84 @@ static uint32_t scale_positive_float(float value, float scale)
 
 static void lcd_clear_value_line(uint16_t y)
 {
-  LCD_Fill(150U, y, 305U, y + 24U, WHITE);
+  LCD_Fill(LCD_VALUE_X, y, 315U, y + 24U, WHITE);
 }
 
 static void lcd_show_placeholder(uint16_t y)
 {
   lcd_clear_value_line(y);
-  LCD_ShowString(150U, y, (const uint8_t *)"--", RED, WHITE, 24U, 0U);
+  LCD_ShowString(LCD_VALUE_X, y, (const uint8_t *)"--", RED, WHITE, 24U, 0U);
 }
 
 static void lcd_show_status_text(const char *text, uint16_t color)
 {
-  lcd_clear_value_line(70U);
-  LCD_ShowString(150U, 70U, (const uint8_t *)text, color, WHITE, 24U, 0U);
+  lcd_clear_value_line(LCD_STATUS_Y);
+  LCD_ShowString(LCD_VALUE_X, LCD_STATUS_Y, (const uint8_t *)text, color, WHITE, 24U, 0U);
+}
+
+static void lcd_show_freq_duty_result(uint16_t status,
+                                      uint32_t test_edge_count,
+                                      uint32_t gate_clk_count,
+                                      uint32_t high_level_clk_count)
+{
+  uint32_t freq_10x_hz;
+  uint32_t duty_10x_pct;
+  float freq_hz;
+  float duty_pct;
+
+  if(((status & FPGA_FREQ_STATUS_VALID) == 0U) ||
+     (test_edge_count == 0U) ||
+     (gate_clk_count == 0U) ||
+     (high_level_clk_count > gate_clk_count))
+  {
+    lcd_show_placeholder(LCD_FREQ_Y);
+    lcd_show_placeholder(LCD_DUTY_Y);
+    return;
+  }
+
+  freq_hz = ((float)test_edge_count * FPGA_FREQ_STD_CLK_HZ) / (float)gate_clk_count;
+  duty_pct = ((float)high_level_clk_count * 100.0f) / (float)gate_clk_count;
+
+  freq_10x_hz = scale_positive_float(freq_hz, 10.0f);
+  duty_10x_pct = scale_positive_float(duty_pct, 10.0f);
+
+  lcd_clear_value_line(LCD_FREQ_Y);
+  if(freq_hz >= 1000.0f)
+  {
+    uint32_t freq_10x_khz = scale_positive_float(freq_hz / 1000.0f, 10.0f);
+    LcdSprintf(LCD_VALUE_X,
+               LCD_FREQ_Y,
+               BLUE,
+               WHITE,
+               24U,
+               0U,
+               "%lu.%01lu k",
+               (unsigned long)(freq_10x_khz / 10U),
+               (unsigned long)(freq_10x_khz % 10U));
+  }
+  else
+  {
+    LcdSprintf(LCD_VALUE_X,
+               LCD_FREQ_Y,
+               BLUE,
+               WHITE,
+               24U,
+               0U,
+               "%lu.%01lu",
+               (unsigned long)(freq_10x_hz / 10U),
+               (unsigned long)(freq_10x_hz % 10U));
+  }
+
+  lcd_clear_value_line(LCD_DUTY_Y);
+  LcdSprintf(LCD_VALUE_X,
+             LCD_DUTY_Y,
+             BLUE,
+             WHITE,
+             24U,
+             0U,
+             "%lu.%01lu",
+             (unsigned long)(duty_10x_pct / 10U),
+             (unsigned long)(duty_10x_pct % 10U));
 }
 
 static void lcd_draw_measure_ui(void)
@@ -87,16 +164,21 @@ static void lcd_draw_measure_ui(void)
   LCD_DrawLine(8U, 46U, 312U, 46U, LIGHTBLUE);
 
   LCD_ShowString(18U, 16U, (const uint8_t *)"Pulse Measure", BLUE, WHITE, 24U, 0U);
-  LCD_ShowString(20U, 70U, (const uint8_t *)"State:", BLACK, WHITE, 24U, 0U);
-  LCD_ShowString(20U, 105U, (const uint8_t *)"Amp(Vpp):", BLACK, WHITE, 24U, 0U);
-  LCD_ShowString(20U, 140U, (const uint8_t *)"Rise(ns):", BLACK, WHITE, 24U, 0U);
-  LCD_ShowString(20U, 175U, (const uint8_t *)"ZeroCnt:", BLACK, WHITE, 24U, 0U);
-  LCD_ShowString(20U, 210U, (const uint8_t *)"KEY2 capture", GRAYBLUE, WHITE, 16U, 0U);
+  LCD_ShowString(210U, 18U, (const uint8_t *)"KEY2:Wave", GRAYBLUE, WHITE, 16U, 0U);
+  LCD_ShowString(20U, LCD_STATUS_Y, (const uint8_t *)"State:", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, LCD_AMP_Y, (const uint8_t *)"Amp(Vpp):", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, LCD_RISE_Y, (const uint8_t *)"Rise(ns):", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, LCD_FREQ_Y, (const uint8_t *)"Freq:", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, LCD_DUTY_Y, (const uint8_t *)"Duty:", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, LCD_ZERO_Y, (const uint8_t *)"ZeroCnt:", BLACK, WHITE, 24U, 0U);
+  LCD_ShowString(20U, LCD_NOTE_Y, (const uint8_t *)"Auto refresh", GRAYBLUE, WHITE, 16U, 0U);
 
   lcd_show_status_text("IDLE", GRAYBLUE);
-  lcd_show_placeholder(105U);
-  lcd_show_placeholder(140U);
-  lcd_show_placeholder(175U);
+  lcd_show_placeholder(LCD_AMP_Y);
+  lcd_show_placeholder(LCD_RISE_Y);
+  lcd_show_placeholder(LCD_FREQ_Y);
+  lcd_show_placeholder(LCD_DUTY_Y);
+  lcd_show_placeholder(LCD_ZERO_Y);
 }
 
 static void lcd_show_measure_result(const pulse_measure_result_t *result, bool capture_ok)
@@ -107,14 +189,14 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
   if(result == NULL)
   {
     lcd_show_status_text("NO_DATA", RED);
-    lcd_show_placeholder(105U);
-    lcd_show_placeholder(140U);
-    lcd_show_placeholder(175U);
+    lcd_show_placeholder(LCD_AMP_Y);
+    lcd_show_placeholder(LCD_RISE_Y);
+    lcd_show_placeholder(LCD_ZERO_Y);
     return;
   }
 
-  lcd_clear_value_line(175U);
-  LcdSprintf(150U, 175U, BLACK, WHITE, 24U, 0U, "%u", result->zero_count);
+  lcd_clear_value_line(LCD_ZERO_Y);
+  LcdSprintf(LCD_VALUE_X, LCD_ZERO_Y, BLACK, WHITE, 24U, 0U, "%u", result->zero_count);
 
   if(!capture_ok)
   {
@@ -128,17 +210,17 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
       lcd_show_status_text("BAD_FRAME", RED);
     }
 
-    lcd_show_placeholder(105U);
-    lcd_show_placeholder(140U);
+    lcd_show_placeholder(LCD_AMP_Y);
+    lcd_show_placeholder(LCD_RISE_Y);
     return;
   }
 
   amplitude_mv = scale_positive_float(result->amplitude_vpp, 1000.0f);
   if(result->rise_time_valid)
   {
-    lcd_clear_value_line(105U);
-    LcdSprintf(150U,
-               105U,
+    lcd_clear_value_line(LCD_AMP_Y);
+    LcdSprintf(LCD_VALUE_X,
+               LCD_AMP_Y,
                BLUE,
                WHITE,
                24U,
@@ -147,9 +229,9 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
                (unsigned long)(amplitude_mv / 1000U),
                (unsigned long)(amplitude_mv % 1000U));
     rise_time_10x_ns = scale_positive_float(result->rise_time_ns, 10.0f);
-    lcd_clear_value_line(140U);
-    LcdSprintf(150U,
-               140U,
+    lcd_clear_value_line(LCD_RISE_Y);
+    LcdSprintf(LCD_VALUE_X,
+               LCD_RISE_Y,
                BLUE,
                WHITE,
                24U,
@@ -169,9 +251,9 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
     }
     else
     {
-      lcd_show_placeholder(105U);
-      lcd_clear_value_line(140U);
-      LCD_ShowString(150U, 140U, (const uint8_t *)"N/A", MAGENTA, WHITE, 24U, 0U);
+      lcd_show_placeholder(LCD_AMP_Y);
+      lcd_clear_value_line(LCD_RISE_Y);
+      LCD_ShowString(LCD_VALUE_X, LCD_RISE_Y, (const uint8_t *)"N/A", MAGENTA, WHITE, 24U, 0U);
       lcd_show_status_text("NO_EDGE", MAGENTA);
     }
   }
@@ -190,9 +272,11 @@ static void capture_and_print(uint16_t cmd, bool dump_samples)
   {
     printf("CAPTURE_READ_FAIL,cmd=0x%04X\r\n", cmd);
     lcd_show_status_text("SPI_FAIL", RED);
-    lcd_show_placeholder(105U);
-    lcd_show_placeholder(140U);
-    lcd_show_placeholder(175U);
+    lcd_show_placeholder(LCD_AMP_Y);
+    lcd_show_placeholder(LCD_RISE_Y);
+    lcd_show_placeholder(LCD_FREQ_Y);
+    lcd_show_placeholder(LCD_DUTY_Y);
+    lcd_show_placeholder(LCD_ZERO_Y);
     return;
   }
 
@@ -202,6 +286,21 @@ static void capture_and_print(uint16_t cmd, bool dump_samples)
                                      &g_pulse_cfg,
                                      &g_pulse_result);
   lcd_show_measure_result(&g_pulse_result, measure_ok);
+  if(spi_reg_read_freq_duty_raw(&g_freq_period_samples,
+                                &g_freq_high_samples,
+                                &g_freq_low_samples,
+                                &g_freq_status) == HAL_OK)
+  {
+    lcd_show_freq_duty_result(g_freq_status,
+                              g_freq_period_samples,
+                              g_freq_high_samples,
+                              g_freq_low_samples);
+  }
+  else
+  {
+    lcd_show_placeholder(LCD_FREQ_Y);
+    lcd_show_placeholder(LCD_DUTY_Y);
+  }
 
   if(!dump_samples)
   {

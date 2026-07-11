@@ -27,6 +27,10 @@ module spi_reg_control(
     output wire [15:0] adc_rata,
     input  wire        capture_busy,
     input  wire        capture_done,
+    input  wire [31:0] freq_period_samples,
+    input  wire [31:0] freq_high_samples,
+    input  wire [31:0] freq_low_samples,
+    input  wire [15:0] freq_status,
     
 //    output wire [13:0] dac_out
     output  wire    [31:0]   dds_fword,
@@ -75,6 +79,10 @@ module spi_reg_control(
                 .adc_rata(adc_rata),
                 .capture_busy(capture_busy),
                 .capture_done(capture_done),
+                .freq_period_samples(freq_period_samples),
+                .freq_high_samples(freq_high_samples),
+                .freq_low_samples(freq_low_samples),
+                .freq_status(freq_status),
  //               .dac_out(dac_out)
                 .dds_fword(dds_fword),
                 .dds_pword(dds_pword)

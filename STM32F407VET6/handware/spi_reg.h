@@ -47,10 +47,23 @@
 
 #define FPGA_ADC_RATE_ADDR       0xa010
 #define FPGA_ADC_STATUS_ADDR     0xbb02
-#define FPGA_ADC_CLK_HZ          130000000UL
+#define FPGA_FREQ_STATUS_ADDR    0xbb10
+#define FPGA_PERIOD_H_ADDR       0xbb11
+#define FPGA_PERIOD_L_ADDR       0xbb12
+#define FPGA_HIGH_H_ADDR         0xbb13
+#define FPGA_HIGH_L_ADDR         0xbb14
+#define FPGA_LOW_H_ADDR          0xbb15
+#define FPGA_LOW_L_ADDR          0xbb16
+#define FPGA_ADC_CLK_HZ          100000000UL
 #define FPGA_ADC_MAX_RATE_HZ     (FPGA_ADC_CLK_HZ / 2UL)
+#define FPGA_ADC_SAMPLE_RATE_HZ  50000000.0f
+#define FPGA_FREQ_STD_CLK_HZ     100000000.0f
 #define FPGA_ADC_STATUS_DONE     0x0001
 #define FPGA_ADC_STATUS_BUSY     0x0002
+#define FPGA_FREQ_STATUS_VALID   0x0001
+#define FPGA_FREQ_STATUS_LOCKED  0x0002
+#define FPGA_FREQ_STATUS_HIGH    0x0004
+#define FPGA_FREQ_STATUS_SPAN_OK 0x0008
 
 /* Exported defines - 硬件配置 ----------------------------------------*/
 /**
@@ -80,5 +93,9 @@ void spi_reg_read(uint16_t *src, uint16_t addr, uint16_t size);
 HAL_StatusTypeDef spi_reg_set_adc_rate_hz(uint32_t adc_rate_hz, uint32_t *actual_rate_hz);
 HAL_StatusTypeDef spi_reg_wait_adc_capture_done(uint32_t timeout_ms);
 HAL_StatusTypeDef spi_reg_read_adc_channel_samples(uint16_t *dst, uint16_t sample_count, uint8_t channel_index);
+HAL_StatusTypeDef spi_reg_read_freq_duty_raw(uint32_t *period_samples,
+                                             uint32_t *high_samples,
+                                             uint32_t *low_samples,
+                                             uint16_t *status);
 
 #endif /* __SPI_REG_H__ */

@@ -121,3 +121,33 @@ HAL_StatusTypeDef spi_reg_read_adc_channel_samples(uint16_t *dst, uint16_t sampl
   return HAL_OK;
 }
 
+HAL_StatusTypeDef spi_reg_read_freq_duty_raw(uint32_t *period_samples,
+                                             uint32_t *high_samples,
+                                             uint32_t *low_samples,
+                                             uint16_t *status)
+{
+  uint16_t period_h = 0U;
+  uint16_t period_l = 0U;
+  uint16_t high_h = 0U;
+  uint16_t high_l = 0U;
+  uint16_t low_h = 0U;
+  uint16_t low_l = 0U;
+
+  if((period_samples == NULL) || (high_samples == NULL) || (low_samples == NULL) || (status == NULL))
+    return HAL_ERROR;
+
+  spi_reg_read(status, FPGA_FREQ_STATUS_ADDR, 1);
+  spi_reg_read(&period_h, FPGA_PERIOD_H_ADDR, 1);
+  spi_reg_read(&period_l, FPGA_PERIOD_L_ADDR, 1);
+  spi_reg_read(&high_h, FPGA_HIGH_H_ADDR, 1);
+  spi_reg_read(&high_l, FPGA_HIGH_L_ADDR, 1);
+  spi_reg_read(&low_h, FPGA_LOW_H_ADDR, 1);
+  spi_reg_read(&low_l, FPGA_LOW_L_ADDR, 1);
+
+  *period_samples = ((uint32_t)period_h << 16) | period_l;
+  *high_samples = ((uint32_t)high_h << 16) | high_l;
+  *low_samples = ((uint32_t)low_h << 16) | low_l;
+
+  return HAL_OK;
+}
+
