@@ -36,6 +36,12 @@ typedef enum
   MEASURE_MODE_FREQ = 1
 } measure_mode_t;
 
+typedef enum
+{
+  WAVE_CHANNEL_1_NORMAL = 0,
+  WAVE_CHANNEL_2_ATTEN = 1
+} wave_channel_t;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -45,6 +51,11 @@ typedef enum
 #define ADC_SAMPLE_RATE_HZ FPGA_ADC_SAMPLE_RATE_HZ
 #define ADC_FULL_SCALE_VPP 4.0f
 #define ADC_MAX_CODE 16383U
+#define WAVE_CHANNEL_1_GAIN 1.0f
+#define WAVE_CHANNEL_2_GAIN 3.1623f
+#define WAVE_CHANNEL_SWITCH_TO_NORMAL_VPP 3.2f
+#define WAVE_CHANNEL_BACK_TO_NORMAL_FRAMES 5U
+#define WAVE_CHANNEL_CH2_HOLD_MS 1000U
 #define LCD_AUTO_REFRESH_INTERVAL_MS 200U
 #define LCD_VALUE_X 150U
 #define LCD_STATUS_Y 56U
@@ -70,6 +81,9 @@ static uint32_t g_freq_period_samples = 0U;
 static uint32_t g_freq_high_samples = 0U;
 static uint32_t g_freq_low_samples = 0U;
 static measure_mode_t g_measure_mode = MEASURE_MODE_WAVE;
+static wave_channel_t g_wave_channel = WAVE_CHANNEL_1_NORMAL;
+static uint8_t g_channel2_low_amp_frames = 0U;
+static uint32_t g_wave_channel_switch_tick = 0U;
 
 static uint32_t scale_positive_float(float value, float scale)
 {
@@ -102,6 +116,96 @@ static void lcd_show_mode_text(const char *text, uint16_t color)
 {
   LCD_Fill(170U, LCD_NOTE_Y, 315U, LCD_NOTE_Y + 18U, WHITE);
   LCD_ShowString(170U, LCD_NOTE_Y, (const uint8_t *)text, color, WHITE, 16U, 0U);
+}
+
+static void lcd_show_channel_text(const char *text, uint16_t color)
+{
+  LCD_Fill(206U, 32U, 315U, 44U, WHITE);
+  LCD_ShowString(206U, 32U, (const uint8_t *)text, color, WHITE, 16U, 0U);
+}
+
+static void apply_wave_channel(void)
+{
+  if(g_wave_channel == WAVE_CHANNEL_1_NORMAL)
+  {
+    HAL_GPIO_WritePin(GPIOD, GPIO_PIN_0, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_6, GPIO_PIN_RESET);
+    g_pulse_cfg.adc_full_scale_vpp = ADC_FULL_SCALE_VPP * WAVE_CHANNEL_1_GAIN;
+    g_channel2_low_amp_frames = 0U;
+    g_wave_channel_switch_tick = HAL_GetTick();
+    lcd_show_channel_text("CH1 0dB", BLUE);
+  }
+  else
+  {
+    HAL_GPIO_WritePin(GPIOD, GPIO_PIN_0, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_6, GPIO_PIN_SET);
+    g_pulse_cfg.adc_full_scale_vpp = ADC_FULL_SCALE_VPP * WAVE_CHANNEL_2_GAIN;
+    g_channel2_low_amp_frames = 0U;
+    g_wave_channel_switch_tick = HAL_GetTick();
+    lcd_show_channel_text("CH2 -10dB", MAGENTA);
+  }
+}
+
+static bool adc_frame_hit_ceiling(const uint16_t *samples, uint16_t sample_count)
+{
+  if(samples == NULL)
+  {
+    return false;
+  }
+
+  for(uint16_t i = 0U; i < sample_count; i++)
+  {
+    if(samples[i] >= ADC_MAX_CODE)
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool wave_channel_auto_adjust(const uint16_t *samples,
+                                     uint16_t sample_count,
+                                     const pulse_measure_result_t *result,
+                                     bool capture_ok)
+{
+  if((g_wave_channel == WAVE_CHANNEL_1_NORMAL) &&
+     adc_frame_hit_ceiling(samples, sample_count))
+  {
+    g_wave_channel = WAVE_CHANNEL_2_ATTEN;
+    apply_wave_channel();
+    return true;
+  }
+
+  if((g_wave_channel == WAVE_CHANNEL_2_ATTEN) &&
+     ((HAL_GetTick() - g_wave_channel_switch_tick) >= WAVE_CHANNEL_CH2_HOLD_MS))
+  {
+    if(capture_ok &&
+       (result != NULL) &&
+       result->rise_time_valid &&
+       (result->amplitude_vpp < WAVE_CHANNEL_SWITCH_TO_NORMAL_VPP))
+    {
+      if(g_channel2_low_amp_frames < WAVE_CHANNEL_BACK_TO_NORMAL_FRAMES)
+      {
+        g_channel2_low_amp_frames++;
+      }
+
+      if(g_channel2_low_amp_frames >= WAVE_CHANNEL_BACK_TO_NORMAL_FRAMES)
+      {
+        g_wave_channel = WAVE_CHANNEL_1_NORMAL;
+        apply_wave_channel();
+        return true;
+      }
+    }
+    else
+    {
+      g_channel2_low_amp_frames = 0U;
+    }
+  }
+
+  return false;
 }
 
 static void lcd_show_freq_duty_result(uint16_t status,
@@ -192,6 +296,7 @@ static void lcd_draw_measure_ui(void)
   lcd_show_placeholder(LCD_DUTY_Y);
   lcd_show_placeholder(LCD_ZERO_Y);
   lcd_show_mode_text("Wave", BLUE);
+  lcd_show_channel_text("CH1 0dB", BLUE);
 }
 
 static void lcd_show_measure_result(const pulse_measure_result_t *result, bool capture_ok)
@@ -236,7 +341,7 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
                LCD_AMP_Y,
                BLUE,
                WHITE,
-               24U,
+               24U,  
                0U,
                "%lu.%03lu",
                (unsigned long)(amplitude_mv / 1000U),
@@ -272,35 +377,48 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
   }
 }
 
-static void capture_wave_measure(uint16_t cmd, bool dump_samples)
+static void capture_wave_measure(uint16_t cmd, bool dump_samples, bool allow_auto_range)
 {
   HAL_StatusTypeDef status;
   bool measure_ok;
+  uint8_t capture_rounds = allow_auto_range ? 2U : 1U;
 
-  spi_reg_write(&cmd, 0xbb01, 1);
-  HAL_Delay(ADC_CAPTURE_WAIT_MS);
-
-  status = spi_reg_read_adc_channel_samples(adc_raw_buff, ADC_CAPTURE_SAMPLE_COUNT, 1);
-  if(status != HAL_OK)
+  for(uint8_t round = 0U; round < capture_rounds; round++)
   {
-    printf("CAPTURE_READ_FAIL,cmd=0x%04X\r\n", cmd);
-    lcd_show_status_text("SPI_FAIL", RED);
-    lcd_show_placeholder(LCD_AMP_Y);
-    lcd_show_placeholder(LCD_RISE_Y);
+    spi_reg_write(&cmd, 0xbb01, 1);
+    HAL_Delay(ADC_CAPTURE_WAIT_MS);
+
+    status = spi_reg_read_adc_channel_samples(adc_raw_buff, ADC_CAPTURE_SAMPLE_COUNT, 1);
+    if(status != HAL_OK)
+    {
+      printf("CAPTURE_READ_FAIL,cmd=0x%04X\r\n", cmd);
+      lcd_show_status_text("SPI_FAIL", RED);
+      lcd_show_placeholder(LCD_AMP_Y);
+      lcd_show_placeholder(LCD_RISE_Y);
+      lcd_show_placeholder(LCD_FREQ_Y);
+      lcd_show_placeholder(LCD_DUTY_Y);
+      lcd_show_placeholder(LCD_ZERO_Y);
+      return;
+    }
+
+    memcpy(adc_work_buff, adc_raw_buff, sizeof(adc_work_buff));
+    measure_ok = pulse_measure_analyze(adc_work_buff,
+                                       ADC_CAPTURE_SAMPLE_COUNT,
+                                       &g_pulse_cfg,
+                                       &g_pulse_result);
+    lcd_show_measure_result(&g_pulse_result, measure_ok);
     lcd_show_placeholder(LCD_FREQ_Y);
     lcd_show_placeholder(LCD_DUTY_Y);
-    lcd_show_placeholder(LCD_ZERO_Y);
-    return;
-  }
 
-  memcpy(adc_work_buff, adc_raw_buff, sizeof(adc_work_buff));
-  measure_ok = pulse_measure_analyze(adc_work_buff,
-                                     ADC_CAPTURE_SAMPLE_COUNT,
-                                     &g_pulse_cfg,
-                                     &g_pulse_result);
-  lcd_show_measure_result(&g_pulse_result, measure_ok);
-  lcd_show_placeholder(LCD_FREQ_Y);
-  lcd_show_placeholder(LCD_DUTY_Y);
+    if((!allow_auto_range) ||
+       (!wave_channel_auto_adjust(adc_raw_buff,
+                                  ADC_CAPTURE_SAMPLE_COUNT,
+                                  &g_pulse_result,
+                                  measure_ok)))
+    {
+      break;
+    }
+  }
 
   if(!dump_samples)
   {
@@ -343,13 +461,13 @@ static void capture_freq_measure(void)
   }
 }
 
-static void measure_mode_refresh(uint16_t cmd, bool dump_samples)
+static void measure_mode_refresh(uint16_t cmd, bool dump_samples, bool allow_auto_range)
 {
   if(g_measure_mode == MEASURE_MODE_WAVE)
   {
     lcd_show_mode_text("Wave", BLUE);
 		HAL_GPIO_WritePin(GPIOC,GPIO_PIN_2,GPIO_PIN_RESET);
-    capture_wave_measure(cmd, dump_samples);
+    capture_wave_measure(cmd, dump_samples, allow_auto_range);
   }
   else
   {
@@ -416,10 +534,11 @@ int main(void)
   g_pulse_cfg.sample_rate_hz = ADC_SAMPLE_RATE_HZ;
   g_pulse_cfg.adc_full_scale_vpp = ADC_FULL_SCALE_VPP;
   g_pulse_cfg.adc_max_code = ADC_MAX_CODE;
+  apply_wave_channel();
 
   key_init();
 	uint16_t cmd = 1;
-	measure_mode_refresh(cmd, false);
+	measure_mode_refresh(cmd, false, true);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -439,18 +558,32 @@ int main(void)
 			else
 				g_measure_mode = MEASURE_MODE_WAVE;
 
-			measure_mode_refresh(cmd, false);
+			measure_mode_refresh(cmd, false, true);
 			last_capture_tick = HAL_GetTick();
+		}
+		if(key_press_flag & KEY4_PRESS_FLAG)
+		{
+			if(g_wave_channel == WAVE_CHANNEL_1_NORMAL)
+				g_wave_channel = WAVE_CHANNEL_2_ATTEN;
+			else
+				g_wave_channel = WAVE_CHANNEL_1_NORMAL;
+
+			apply_wave_channel();
+			if(g_measure_mode == MEASURE_MODE_WAVE)
+			{
+				measure_mode_refresh(cmd, false, false);
+				last_capture_tick = HAL_GetTick();
+			}
 		}
 		if((HAL_GetTick() - last_capture_tick) >= LCD_AUTO_REFRESH_INTERVAL_MS)
 		{
-			measure_mode_refresh(cmd, false);
+			measure_mode_refresh(cmd, false, true);
 			last_capture_tick = HAL_GetTick();
 		}
 		if((g_measure_mode == MEASURE_MODE_WAVE) &&
 		   (key_press_flag & KEY2_PRESS_FLAG))
 		{
-			measure_mode_refresh(cmd, true);
+			measure_mode_refresh(cmd, true, false);
 			last_capture_tick = HAL_GetTick();
 		}
   }

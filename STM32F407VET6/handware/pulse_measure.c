@@ -138,9 +138,9 @@ static bool pulse_measure_calc_levels(const uint16_t *samples,
     return false;
   }
 
-  result->amplitude_code = (uint16_t)(result->high_code - result->low_code)*0.96;
+  result->amplitude_code = (uint16_t)(result->high_code - result->low_code);
   result->amplitude_vpp = ((float)result->amplitude_code / (float)config->adc_max_code) *
-                          config->adc_full_scale_vpp;
+                          config->adc_full_scale_vpp*1.03626;
 
   return (result->amplitude_code >= config->min_amplitude_code);
 }
