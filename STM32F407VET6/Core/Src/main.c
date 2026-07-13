@@ -30,6 +30,11 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef enum
+{
+  MEASURE_MODE_WAVE = 0,
+  MEASURE_MODE_FREQ = 1
+} measure_mode_t;
 
 /* USER CODE END PTD */
 
@@ -64,6 +69,7 @@ static uint16_t g_freq_status = 0U;
 static uint32_t g_freq_period_samples = 0U;
 static uint32_t g_freq_high_samples = 0U;
 static uint32_t g_freq_low_samples = 0U;
+static measure_mode_t g_measure_mode = MEASURE_MODE_WAVE;
 
 static uint32_t scale_positive_float(float value, float scale)
 {
@@ -90,6 +96,12 @@ static void lcd_show_status_text(const char *text, uint16_t color)
 {
   lcd_clear_value_line(LCD_STATUS_Y);
   LCD_ShowString(LCD_VALUE_X, LCD_STATUS_Y, (const uint8_t *)text, color, WHITE, 24U, 0U);
+}
+
+static void lcd_show_mode_text(const char *text, uint16_t color)
+{
+  LCD_Fill(170U, LCD_NOTE_Y, 315U, LCD_NOTE_Y + 18U, WHITE);
+  LCD_ShowString(170U, LCD_NOTE_Y, (const uint8_t *)text, color, WHITE, 16U, 0U);
 }
 
 static void lcd_show_freq_duty_result(uint16_t status,
@@ -164,14 +176,14 @@ static void lcd_draw_measure_ui(void)
   LCD_DrawLine(8U, 46U, 312U, 46U, LIGHTBLUE);
 
   LCD_ShowString(18U, 16U, (const uint8_t *)"Pulse Measure", BLUE, WHITE, 24U, 0U);
-  LCD_ShowString(210U, 18U, (const uint8_t *)"KEY2:Wave", GRAYBLUE, WHITE, 16U, 0U);
+  LCD_ShowString(206U, 18U, (const uint8_t *)"KEY2:Dump", GRAYBLUE, WHITE, 16U, 0U);
   LCD_ShowString(20U, LCD_STATUS_Y, (const uint8_t *)"State:", BLACK, WHITE, 24U, 0U);
   LCD_ShowString(20U, LCD_AMP_Y, (const uint8_t *)"Amp(Vpp):", BLACK, WHITE, 24U, 0U);
   LCD_ShowString(20U, LCD_RISE_Y, (const uint8_t *)"Rise(ns):", BLACK, WHITE, 24U, 0U);
   LCD_ShowString(20U, LCD_FREQ_Y, (const uint8_t *)"Freq:", BLACK, WHITE, 24U, 0U);
   LCD_ShowString(20U, LCD_DUTY_Y, (const uint8_t *)"Duty:", BLACK, WHITE, 24U, 0U);
   LCD_ShowString(20U, LCD_ZERO_Y, (const uint8_t *)"ZeroCnt:", BLACK, WHITE, 24U, 0U);
-  LCD_ShowString(20U, LCD_NOTE_Y, (const uint8_t *)"Auto refresh", GRAYBLUE, WHITE, 16U, 0U);
+  LCD_ShowString(20U, LCD_NOTE_Y, (const uint8_t *)"KEY3 Mode:", GRAYBLUE, WHITE, 16U, 0U);
 
   lcd_show_status_text("IDLE", GRAYBLUE);
   lcd_show_placeholder(LCD_AMP_Y);
@@ -179,6 +191,7 @@ static void lcd_draw_measure_ui(void)
   lcd_show_placeholder(LCD_FREQ_Y);
   lcd_show_placeholder(LCD_DUTY_Y);
   lcd_show_placeholder(LCD_ZERO_Y);
+  lcd_show_mode_text("Wave", BLUE);
 }
 
 static void lcd_show_measure_result(const pulse_measure_result_t *result, bool capture_ok)
@@ -259,7 +272,7 @@ static void lcd_show_measure_result(const pulse_measure_result_t *result, bool c
   }
 }
 
-static void capture_and_print(uint16_t cmd, bool dump_samples)
+static void capture_wave_measure(uint16_t cmd, bool dump_samples)
 {
   HAL_StatusTypeDef status;
   bool measure_ok;
@@ -286,21 +299,8 @@ static void capture_and_print(uint16_t cmd, bool dump_samples)
                                      &g_pulse_cfg,
                                      &g_pulse_result);
   lcd_show_measure_result(&g_pulse_result, measure_ok);
-  if(spi_reg_read_freq_duty_raw(&g_freq_period_samples,
-                                &g_freq_high_samples,
-                                &g_freq_low_samples,
-                                &g_freq_status) == HAL_OK)
-  {
-    lcd_show_freq_duty_result(g_freq_status,
-                              g_freq_period_samples,
-                              g_freq_high_samples,
-                              g_freq_low_samples);
-  }
-  else
-  {
-    lcd_show_placeholder(LCD_FREQ_Y);
-    lcd_show_placeholder(LCD_DUTY_Y);
-  }
+  lcd_show_placeholder(LCD_FREQ_Y);
+  lcd_show_placeholder(LCD_DUTY_Y);
 
   if(!dump_samples)
   {
@@ -312,6 +312,50 @@ static void capture_and_print(uint16_t cmd, bool dump_samples)
   for (uint16_t i = 0; i < ADC_CAPTURE_SAMPLE_COUNT; i++)
   {
     printf("%u\r\n", adc_raw_buff[i]);
+  }
+}
+
+static void capture_freq_measure(void)
+{
+  lcd_show_placeholder(LCD_AMP_Y);
+  lcd_show_placeholder(LCD_RISE_Y);
+  lcd_show_placeholder(LCD_ZERO_Y);
+
+  if(spi_reg_read_freq_duty_raw(&g_freq_period_samples,
+                                &g_freq_high_samples,
+                                &g_freq_low_samples,
+                                &g_freq_status) == HAL_OK)
+  {
+    lcd_show_freq_duty_result(g_freq_status,
+                              g_freq_period_samples,
+                              g_freq_high_samples,
+                              g_freq_low_samples);
+    if((g_freq_status & FPGA_FREQ_STATUS_VALID) != 0U)
+      lcd_show_status_text("OK", GREEN);
+    else
+      lcd_show_status_text("NO_SIG", MAGENTA);
+  }
+  else
+  {
+    lcd_show_status_text("SPI_FAIL", RED);
+    lcd_show_placeholder(LCD_FREQ_Y);
+    lcd_show_placeholder(LCD_DUTY_Y);
+  }
+}
+
+static void measure_mode_refresh(uint16_t cmd, bool dump_samples)
+{
+  if(g_measure_mode == MEASURE_MODE_WAVE)
+  {
+    lcd_show_mode_text("Wave", BLUE);
+		HAL_GPIO_WritePin(GPIOC,GPIO_PIN_2,GPIO_PIN_RESET);
+    capture_wave_measure(cmd, dump_samples);
+  }
+  else
+  {
+    lcd_show_mode_text("Freq", GREEN);
+		HAL_GPIO_WritePin(GPIOC,GPIO_PIN_2,GPIO_PIN_SET);
+    capture_freq_measure();
   }
 }
 
@@ -375,7 +419,7 @@ int main(void)
 
   key_init();
 	uint16_t cmd = 1;
-	capture_and_print(cmd, false);
+	measure_mode_refresh(cmd, false);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -388,14 +432,25 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     key_proc();
-		if((HAL_GetTick() - last_capture_tick) >= LCD_AUTO_REFRESH_INTERVAL_MS)
+		if(key_press_flag & KEY3_PRESS_FLAG)
 		{
-			capture_and_print(cmd, false);
+			if(g_measure_mode == MEASURE_MODE_WAVE)
+				g_measure_mode = MEASURE_MODE_FREQ;
+			else
+				g_measure_mode = MEASURE_MODE_WAVE;
+
+			measure_mode_refresh(cmd, false);
 			last_capture_tick = HAL_GetTick();
 		}
-		if(key_press_flag & KEY2_PRESS_FLAG)
+		if((HAL_GetTick() - last_capture_tick) >= LCD_AUTO_REFRESH_INTERVAL_MS)
 		{
-			capture_and_print(cmd, true);
+			measure_mode_refresh(cmd, false);
+			last_capture_tick = HAL_GetTick();
+		}
+		if((g_measure_mode == MEASURE_MODE_WAVE) &&
+		   (key_press_flag & KEY2_PRESS_FLAG))
+		{
+			measure_mode_refresh(cmd, true);
 			last_capture_tick = HAL_GetTick();
 		}
   }

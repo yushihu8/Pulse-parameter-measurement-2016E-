@@ -133,7 +133,7 @@ static bool pulse_measure_calc_levels(const uint16_t *samples,
   result->low_code = (uint16_t)(low_sum / valid_low);
   result->high_code = (uint16_t)(high_sum / valid_high);
 
-  if(result->high_code <= result->low_code)
+  if(result->high_code <= result->low_code)  
   {
     return false;
   }
